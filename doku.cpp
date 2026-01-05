@@ -89,6 +89,8 @@ RenderDoku::RenderDoku() : m_program(0), m_vbo(0) {}
 RenderDoku::~RenderDoku() {
     if (m_program) glDeleteProgram(m_program);
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
+    if (m_fbo) glDeleteFramebuffers(1, &m_fbo);
+    if (m_fboTexture) glDeleteTextures(1, &m_fboTexture);
 }
 
 const char* VERT_SHADER = R"(#version 310 es
@@ -365,16 +367,40 @@ void RenderDoku::Init() {
     
     glVertexAttribPointer(m_aPosition, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(m_aPosition);
+
+    // Initialize FBO
+    GLint oldDrawFBO, oldReadFBO;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDrawFBO);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldReadFBO);
+
+    glGenFramebuffers(1, &m_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+    glGenTextures(1, &m_fboTexture);
+    glBindTexture(GL_TEXTURE_2D, m_fboTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FBO_SIZE, FBO_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fboTexture, 0);
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        LOGE("Framebuffer not complete: %x", status);
+    }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, oldDrawFBO);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, oldReadFBO);
 }
 
 void RenderDoku::Resize(int width, int height) {
+    m_windowWidth = width;
+    m_windowHeight = height;
     int size = (std::min)(width, height);
     m_viewportSize = size;
     m_offsetX = (width - size) / 2;
     m_offsetY = (height - size) / 2;
-    
-    // Set the viewport to be centered and square
-    glViewport(m_offsetX, m_offsetY, size, size);
 
     cx = (float)size;
     cy = (float)size;
@@ -385,6 +411,14 @@ void RenderDoku::Tick() {
 }
 
 void RenderDoku::Render() {
+    GLint oldDrawFBO, oldReadFBO;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDrawFBO);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldReadFBO);
+
+    // Render to FBO
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+    glViewport(0, 0, FBO_SIZE, FBO_SIZE);
+    
     glUseProgram(m_program);
 
     // Uniform setting logic from draw()
@@ -407,5 +441,19 @@ void RenderDoku::Render() {
     glUniform3f(m_uForward, -std::cos(ang1) * std::cos(ang2), -std::sin(ang2), -std::sin(ang1) * std::cos(ang2));
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // Blit to screen
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, oldDrawFBO);
+    
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glBlitFramebuffer(0, 0, FBO_SIZE, FBO_SIZE,
+                      m_offsetX, m_offsetY, m_offsetX + m_viewportSize, m_offsetY + m_viewportSize,
+                      GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                      
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, oldDrawFBO);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, oldReadFBO);
 }
 

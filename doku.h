@@ -65,4 +65,11 @@ private:
     int m_offsetX = 0;
     int m_offsetY = 0;
     int m_viewportSize = 0;
+    int m_windowWidth = 0;
+    int m_windowHeight = 0;
+
+    // Offscreen Rendering
+    GLuint m_fbo = 0;
+    GLuint m_fboTexture = 0;
+    const int FBO_SIZE = 1024;
 };
