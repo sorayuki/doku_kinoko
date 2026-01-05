@@ -1,6 +1,5 @@
 #pragma once
 
-#include <windows.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl31.h>
@@ -14,7 +13,7 @@ public:
     GLEnv();
     ~GLEnv();
 
-    bool Init(HWND window);
+    bool Init(void* window); // Changed from ANativeWindow* to void* for cross-platform compatibility
     void Swap();
     void Destroy();
 

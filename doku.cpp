@@ -1,5 +1,17 @@
 #include "doku.h"
+#include "doku.h"
 #include <vector>
+
+#ifdef __ANDROID__
+    #include <android/log.h>
+    #include <android/native_window.h>
+    #define LOG_TAG "DOKU_RENDER"
+    #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+    #include <cstdio>
+    #define LOGE(...) do { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while(0)
+#endif
+
 
 // ================= GLEnv =================
 
@@ -9,7 +21,7 @@ GLEnv::~GLEnv() {
     Destroy();
 }
 
-bool GLEnv::Init(HWND window) {
+bool GLEnv::Init(void* window) {
     m_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (m_display == EGL_NO_DISPLAY) return false;
 
@@ -39,7 +51,12 @@ bool GLEnv::Init(HWND window) {
     m_context = eglCreateContext(m_display, config, EGL_NO_CONTEXT, contextAttribs);
     if (m_context == EGL_NO_CONTEXT) return false;
 
-    m_surface = eglCreateWindowSurface(m_display, config, window, nullptr);
+    #ifdef __ANDROID__
+        m_surface = eglCreateWindowSurface(m_display, config, (ANativeWindow*)window, nullptr);
+    #else
+        m_surface = eglCreateWindowSurface(m_display, config, (EGLNativeWindowType)window, nullptr);
+    #endif
+
     if (m_surface == EGL_NO_SURFACE) return false;
 
     if (!eglMakeCurrent(m_display, m_surface, m_surface, m_context)) return false;
@@ -68,7 +85,7 @@ void GLEnv::Destroy() {
 
 // ================= RenderDoku =================
 
-RenderDoku::RenderDoku() {}
+RenderDoku::RenderDoku() : m_program(0), m_vbo(0) {}
 RenderDoku::~RenderDoku() {
     if (m_program) glDeleteProgram(m_program);
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
@@ -277,7 +294,7 @@ GLuint RenderDoku::CreateShader(GLenum type, const char* source) {
         if (infoLen > 1) {
             std::vector<char> infoLog(infoLen);
             glGetShaderInfoLog(shader, infoLen, nullptr, infoLog.data());
-            std::cerr << "Error compiling shader:\n" << infoLog.data() << std::endl;
+            LOGE("Error compiling shader:\n%s", infoLog.data());
         }
         glDeleteShader(shader);
         return 0;
@@ -304,7 +321,7 @@ GLuint RenderDoku::CreateProgram(const char* vertexSource, const char* fragmentS
         if (infoLen > 1) {
             std::vector<char> infoLog(infoLen);
             glGetProgramInfoLog(program, infoLen, nullptr, infoLog.data());
-            std::cerr << "Error linking program:\n" << infoLog.data() << std::endl;
+            LOGE("Error linking program:\n%s", infoLog.data());
         }
         glDeleteProgram(program);
         return 0;
@@ -318,7 +335,7 @@ void RenderDoku::Init() {
     m_program = CreateProgram(VERT_SHADER, fragSource.c_str());
 
     if (!m_program) {
-        std::cerr << "Failed to create program" << std::endl;
+        LOGE("Failed to create program");
         return;
     }
 
