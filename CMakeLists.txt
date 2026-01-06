@@ -3,40 +3,52 @@ project(doku)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Include directories
-include_directories(${CMAKE_SOURCE_DIR}/third_party/include)
 
-# Library directories
-link_directories(${CMAKE_SOURCE_DIR}/third_party/lib)
+if(WIN32)
+    # Include directories
+    include_directories(${CMAKE_SOURCE_DIR}/third_party/include)
 
-# Source files
-set(SOURCES
-    main.cpp
-    doku.cpp
-)
+    # Library directories
+    link_directories(${CMAKE_SOURCE_DIR}/third_party/lib)
 
-# Executable
-add_executable(doku ${SOURCES})
+    # Source files
+    set(SOURCES
+        main_win.cpp
+        doku.cpp
+    )
 
-# Link libraries
-target_link_libraries(doku
-    libEGL
-    libGLESv2
-    zlib
-)
+    # Executable
+    add_executable(doku ${SOURCES})
 
-# Copy DLLs to output directory
-add_custom_command(TARGET doku POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/third_party/bin/libEGL.dll"
-        "$<TARGET_FILE_DIR:doku>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/third_party/bin/libGLESv2.dll"
-        "$<TARGET_FILE_DIR:doku>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/third_party/bin/zlib1.dll"
-        "$<TARGET_FILE_DIR:doku>"
-)
+    # Link libraries
+    target_link_libraries(doku
+        libEGL
+        libGLESv2
+        zlib
+    )
 
-# Generate .gitignore in binary directory to ignore all files there
-file(WRITE ${CMAKE_BINARY_DIR}/.gitignore "*")
+    # Copy DLLs to output directory
+    add_custom_command(TARGET doku POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/third_party/bin/libEGL.dll"
+            "$<TARGET_FILE_DIR:doku>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/third_party/bin/libGLESv2.dll"
+            "$<TARGET_FILE_DIR:doku>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/third_party/bin/zlib1.dll"
+            "$<TARGET_FILE_DIR:doku>"
+    )
+elseif(APPLE)
+    # Include directories
+    include_directories(${CMAKE_SOURCE_DIR}/third_party/include)
+    
+    # Source files
+    set(SOURCES
+        main_macos.mm
+    )
+    
+    # Compile object only, do not link since we don't have libs
+    add_library(doku OBJECT ${SOURCES})
+endif()
+
